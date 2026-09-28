@@ -40,7 +40,7 @@ services:
       # Router: eine feste Domain. Hostingers eigenes Beispiel baut den Host
       # stattdessen als ${COMPOSE_PROJECT_NAME}.${TRAEFIK_HOST} zusammen —
       # beides funktioniert, die feste Domain ist nachvollziehbarer.
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.rule=Host(`${APP_DOMAIN:?APP_DOMAIN fehlt — in .env setzen}`)
+      - traefik.http.routers.heyde-datenplattformen.rule=Host(`dp.heyde.weise.uk`)
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.entrypoints=websecure
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.tls=true
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
