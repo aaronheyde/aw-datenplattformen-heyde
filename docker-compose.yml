@@ -1,51 +1,41 @@
-# Datenplattform-Vergleich hinter Traefik — fuer den Docker-Manager bei Hostinger.
+# ============================================================================
+# Datenplattform-Vergleich fuer den Hostinger Docker-Manager.
 #
-#   docker compose up -d --build
-#   docker compose logs -f
+# Zieht ein fertiges Image aus der GitHub Container Registry und baut nichts.
 #
-# Die App veroeffentlicht bewusst KEINE Ports. Nur Traefik belegt auf dem Host 80
-# und 443; der Container ist ausschliesslich ueber das gemeinsame Netz erreichbar.
-# Damit ist auch der Konflikt mit Port 3000 der Zeiterfassung gegenstandslos.
+# Kein networks-Block: Das Traefik-Projekt auf diesem VPS laeuft mit
+# network_mode: host und haengt in keinem Docker-Netz. Es findet die Container
+# ueber den Docker-Socket und erreicht sie vom Host aus ueber ihre Container-IP.
+# Ein externes Netz zu deklarieren wuerde hier fehlschlagen
+# ("Docker project not found").
 #
-# Voraussetzung: ein Traefik-Projekt laeuft bereits und hat das externe Netz
-# angelegt (bei Hostinger heisst es traefik-proxy). Falls nicht, zuerst
-# deploy/traefik/docker-compose.yml als eigenes Projekt starten.
-#
-# Zum lokalen Testen ohne Traefik:
-#   docker compose -f docker-compose.yml -f deploy/compose.local.yml up -d --build
+# Voraussetzungen:
+#   - A-Record von dp.heyde.weise.uk auf die IP des VPS
+#   - Das Paket ghcr.io/aaronheyde/aw-datenplattformen-heyde ist oeffentlich
+# ============================================================================
 
 services:
   app:
-    build:
-      context: .
-      args:
-        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
-    image: heyde-datenplattformen:${APP_VERSION:-1.0.0}
-    container_name: ${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}
+    image: ghcr.io/aaronheyde/aw-datenplattformen-heyde:latest
+    container_name: heyde-datenplattformen
     restart: unless-stopped
+    pull_policy: always
 
     environment:
       NODE_ENV: production
       PORT: "3001"
-      # Im Container zwingend 0.0.0.0 — mit 127.0.0.1 erreicht Traefik den
-      # Dienst nicht, obwohl der Container laeuft.
+      # Im Container zwingend 0.0.0.0. Mit 127.0.0.1 laeuft der Container,
+      # aber Traefik erreicht ihn nicht und liefert Bad Gateway.
       HOST: 0.0.0.0
-
-    networks:
-      - traefik
 
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik-proxy}
-      # Router: eine feste Domain. Hostingers eigenes Beispiel baut den Host
-      # stattdessen als ${COMPOSE_PROJECT_NAME}.${TRAEFIK_HOST} zusammen —
-      # beides funktioniert, die feste Domain ist nachvollziehbarer.
       - traefik.http.routers.heyde-datenplattformen.rule=Host(`dp.heyde.weise.uk`)
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.entrypoints=websecure
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.tls=true
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
-      # Der Port im Container, nicht auf dem Host.
-      - traefik.http.services.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.loadbalancer.server.port=3001
+      - traefik.http.routers.heyde-datenplattformen.entrypoints=websecure
+      - traefik.http.routers.heyde-datenplattformen.tls=true
+      - traefik.http.routers.heyde-datenplattformen.tls.certresolver=letsencrypt
+      # Port im Container. Es wird bewusst kein Port auf dem Host veroeffentlicht.
+      - traefik.http.services.heyde-datenplattformen.loadbalancer.server.port=3001
 
     healthcheck:
       test:
@@ -58,7 +48,6 @@ services:
       start_period: 10s
       retries: 3
 
-    # Der Dienst liefert nur statische Dateien aus und schreibt nichts.
     read_only: true
     tmpfs:
       - /tmp
@@ -72,8 +61,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  traefik:
-    external: true
-    name: ${TRAEFIK_NETWORK:-traefik-proxy}
