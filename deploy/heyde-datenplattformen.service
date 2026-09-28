@@ -1,0 +1,41 @@
+[Unit]
+Description=Heyde Vergleich von Datenplattformen (Node/Express)
+Documentation=file:///opt/heyde-datenplattformen/app/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heyde
+Group=heyde
+WorkingDirectory=/opt/heyde-datenplattformen/app
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=HOST=127.0.0.1
+# Alternativ die Werte aus einer Datei lesen (nicht im Git, Rechte 0640 heyde:heyde):
+# EnvironmentFile=/opt/heyde-datenplattformen/app/.env
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=heyde-datenplattformen
+
+# Absicherung — der Dienst braucht nur Lesezugriff auf sein eigenes Verzeichnis.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/heyde-datenplattformen/app
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

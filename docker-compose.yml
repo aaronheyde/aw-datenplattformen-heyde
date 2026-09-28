@@ -1,0 +1,79 @@
+# Datenplattform-Vergleich hinter Traefik — fuer den Docker-Manager bei Hostinger.
+#
+#   docker compose up -d --build
+#   docker compose logs -f
+#
+# Die App veroeffentlicht bewusst KEINE Ports. Nur Traefik belegt auf dem Host 80
+# und 443; der Container ist ausschliesslich ueber das gemeinsame Netz erreichbar.
+# Damit ist auch der Konflikt mit Port 3000 der Zeiterfassung gegenstandslos.
+#
+# Voraussetzung: ein Traefik-Projekt laeuft bereits und hat das externe Netz
+# angelegt (bei Hostinger heisst es traefik-proxy). Falls nicht, zuerst
+# deploy/traefik/docker-compose.yml als eigenes Projekt starten.
+#
+# Zum lokalen Testen ohne Traefik:
+#   docker compose -f docker-compose.yml -f deploy/compose.local.yml up -d --build
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+    image: heyde-datenplattformen:${APP_VERSION:-1.0.0}
+    container_name: ${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      # Im Container zwingend 0.0.0.0 — mit 127.0.0.1 erreicht Traefik den
+      # Dienst nicht, obwohl der Container laeuft.
+      HOST: 0.0.0.0
+
+    networks:
+      - traefik
+
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik-proxy}
+      # Router: eine feste Domain. Hostingers eigenes Beispiel baut den Host
+      # stattdessen als ${COMPOSE_PROJECT_NAME}.${TRAEFIK_HOST} zusammen —
+      # beides funktioniert, die feste Domain ist nachvollziehbarer.
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.rule=Host(`${APP_DOMAIN:?APP_DOMAIN fehlt — in .env setzen}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.tls=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      # Der Port im Container, nicht auf dem Host.
+      - traefik.http.services.${COMPOSE_PROJECT_NAME:-heyde-datenplattformen}.loadbalancer.server.port=3001
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    # Der Dienst liefert nur statische Dateien aus und schreibt nichts.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik-proxy}

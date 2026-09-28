@@ -1,0 +1,61 @@
+# Eigenstaendiges Traefik-Projekt — NUR anlegen, wenn im Docker-Manager noch
+# kein Traefik laeuft. Bringt Hostinger beziehungsweise ein Panel-Template
+# bereits eines mit, diese Datei nicht verwenden: zwei Traefik-Instanzen
+# streiten sich um die Ports 80 und 443.
+#
+# Als eigenes Projekt starten, vor der App:
+#   cd deploy/traefik
+#   cp .env.example .env     # ACME_EMAIL eintragen
+#   docker compose up -d
+#
+# Legt das externe Netz an, in das sich die App spaeter einhaengt.
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: traefik
+    restart: unless-stopped
+
+    command:
+      # Container werden nur geroutet, wenn sie traefik.enable=true tragen.
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${TRAEFIK_NETWORK:-traefik-proxy}
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Alles auf HTTPS umleiten, damit die App selbst nichts dazu wissen muss.
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?ACME_EMAIL fehlt — in .env setzen}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --log.level=INFO
+      - --accesslog=true
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      # Nur lesend: Traefik muss die Container sehen, nicht steuern.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - acme:/letsencrypt
+
+    networks:
+      - traefik
+
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  acme:
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik-proxy}
