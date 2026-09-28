@@ -1,49 +1,21 @@
-# ============================================================================
-# Diese Datei im Hostinger Docker-Manager einfuegen.
-#
-# Sie baut nichts — sie zieht ein fertiges Image, das GitHub Actions
-# veroeffentlicht hat. Deshalb funktioniert sie im Panel, wo kein Quellcode
-# liegt.
-#
-# ZWEI STELLEN ANPASSEN, beide unten mit ANPASSEN markiert:
-#   1. image:  der Name des Repos, falls er anders heisst
-#   2. Host(`...`)  die Domain, unter der die App erreichbar sein soll
-#
-# Voraussetzungen:
-#   - Ein Traefik-Projekt laeuft bereits und hat das Netz traefik-proxy angelegt
-#   - Ein A-Record der Domain zeigt auf die IP des VPS
-#   - Ist das Paket in der Registry privat, im Panel unter "Private registry"
-#     Zugangsdaten hinterlegen
-# ============================================================================
-
 services:
   app:
-    # ANPASSEN: ghcr.io/<GitHub-Konto>/<Repo-Name>:latest — alles klein geschrieben
     image: ghcr.io/aaronheyde/aw-datenplattformen-heyde:latest
     container_name: heyde-datenplattformen
     restart: unless-stopped
-    # Beim Neu-Ausrollen immer die aktuelle Fassung holen.
     pull_policy: always
 
     environment:
       NODE_ENV: production
       PORT: "3001"
-      # Im Container zwingend 0.0.0.0. Mit 127.0.0.1 laeuft der Container,
-      # aber Traefik erreicht ihn nicht und liefert Bad Gateway.
       HOST: 0.0.0.0
-
-    networks:
-      - traefik
 
     labels:
       - traefik.enable=true
-      - traefik.docker.network=traefik-proxy
-      # ANPASSEN: die echte Domain zwischen die Backticks
-      - traefik.http.routers.heyde-datenplattformen.rule=Host(`dp.heyde.famweise.ch`)
+      - traefik.http.routers.heyde-datenplattformen.rule=Host(`dp.heyde.weise.uk`)
       - traefik.http.routers.heyde-datenplattformen.entrypoints=websecure
       - traefik.http.routers.heyde-datenplattformen.tls=true
       - traefik.http.routers.heyde-datenplattformen.tls.certresolver=letsencrypt
-      # Port im Container, nicht auf dem Host. Es wird kein Port veroeffentlicht.
       - traefik.http.services.heyde-datenplattformen.loadbalancer.server.port=3001
 
     healthcheck:
@@ -70,8 +42,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  traefik:
-    external: true
-    name: traefik-proxy
